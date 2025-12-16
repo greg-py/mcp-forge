@@ -6,7 +6,6 @@ import { z } from "zod";
 import express, { Express } from "express";
 import { Server } from "http";
 import { randomUUID } from "crypto";
-import { toMcpSchema } from "../utils/schema";
 import { formatError, logger } from "./errors";
 
 /**
@@ -467,11 +466,12 @@ export class Forge {
         // Get headers for this session if available
         const headers = sessionId ? this.sessionHeaders.get(sessionId) : undefined;
         for (const tool of this.tools) {
-            const jsonSchema = toMcpSchema(tool.schema);
-
+            // Pass Zod schema directly - SDK handles validation and JSON Schema conversion
+            // The 'any' cast avoids TypeScript deep instantiation errors with SDK's complex generic types
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             server.registerTool(
                 tool.name,
-                { inputSchema: jsonSchema, description: tool.description },
+                { inputSchema: tool.schema as any, description: tool.description },
                 async (args: any, extra: any) => {
                     try {
                         const validatedArgs = tool.schema.parse(args);

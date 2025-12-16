@@ -13,6 +13,7 @@ export {
     ForgePluginFactory,
 } from "./core/Forge";
 export { logger, formatError } from "./core/errors";
+/** @deprecated Since v0.2.1. The MCP SDK now handles schema conversion internally. */
 export { toMcpSchema } from "./utils/schema";
 export { definePlugin, definePluginFactory } from "./utils/plugin";
 

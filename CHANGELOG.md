@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-12-16
+
+### Fixed
+
+- Fixed compatibility with @modelcontextprotocol/sdk v1.25.1 and later versions
+- Zod schemas are now passed directly to the SDK instead of converting to JSON Schema first
+- Resolves "v3Schema.safeParseAsync is not a function" error when using newer SDK versions
+
+### Changed
+
+- Moved `zod-to-json-schema` from dependencies to devDependencies (SDK handles conversion internally)
+
+### Deprecated
+
+- `toMcpSchema()` utility is deprecated and will be removed in a future major version
+  - The MCP SDK now handles Zod-to-JSON-Schema conversion internally
+  - If you need JSON Schema conversion for other purposes, use the `zod-to-json-schema` package directly
+
 ## [0.2.0] - 2025-12-16
+
 
 ### Added
 
@@ -61,7 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with Vitest
 - GitHub Actions CI/CD workflows
 
-[Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/greg-py/mcp-forge/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/greg-py/mcp-forge/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/greg-py/mcp-forge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/greg-py/mcp-forge/releases/tag/v0.1.0
