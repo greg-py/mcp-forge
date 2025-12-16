@@ -33,21 +33,15 @@ export class Forge {
         this.tools.push({ name, schema, handler });
 
         // Convert Zod schema to JSON Schema for MCP
-        // The SDK likely expects an input schema object.
         const jsonSchema = toMcpSchema(schema);
 
-        this.server.tool(name, jsonSchema, async (args: any) => {
+        this.server.registerTool(name, { inputSchema: jsonSchema }, async (args: any) => {
             try {
                 // Validate arguments against Zod schema at runtime
                 const validatedArgs = schema.parse(args);
 
                 // Execute the user's handler
                 const result = await handler(validatedArgs);
-
-                // Return success result
-                // MCP tools conventionally return a generic result structure.
-                // We assume the handler returns a string or a JSON object that we wrap in a text content.
-                // If the handler returns a structured CallToolResult (which includes `content`), we return it as is.
 
                 if (result && typeof result === 'object' && 'content' in result) {
                     return result;
@@ -68,6 +62,60 @@ export class Forge {
         });
 
         return this; // Fluent interface
+    }
+
+    /**
+     * Registers a static resource with the Forge server.
+     * @param name The name of the resource.
+     * @param uri The URI of the resource.
+     * @param handler The implementation of the resource reader.
+     */
+    resource(
+        name: string,
+        uri: string,
+        handler: (uri: URL) => Promise<{ text: string } | { blob: string; mimeType?: string }> | { text: string } | { blob: string; mimeType?: string }
+    ) {
+        // registerResource requires metadata config
+        this.server.registerResource(name, uri, {}, async (readUri) => {
+            try {
+                const result = await handler(readUri);
+
+                return {
+                    contents: [
+                        {
+                            uri: readUri.toString(),
+                            ...result
+                        }
+                    ]
+                };
+            } catch (error) {
+                throw error;
+            }
+        });
+        return this;
+    }
+
+    /**
+     * Registers a prompt with the Forge server.
+     * @param name The name of the prompt.
+     * @param schema The Zod schema defining the prompt's arguments.
+     * @param handler The implementation of the prompt.
+     */
+    prompt<Schema extends z.ZodType<any>>(
+        name: string,
+        schema: Schema,
+        handler: (args: z.infer<Schema>) => Promise<any> | any
+    ) {
+        this.server.registerPrompt(name, { argsSchema: schema as any }, async (args: any) => {
+            try {
+                const result = await handler(args);
+                return result;
+            } catch (error) {
+                throw error;
+            }
+        });
+
+        return this;
     }
 
     /**
