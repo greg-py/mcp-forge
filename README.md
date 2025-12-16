@@ -18,7 +18,7 @@ Forge abstracts away the low-level details of the MCP SDK, allowing you to focus
 
 - **Type Safety** - Full TypeScript support with argument inference from Zod schemas
 - **MCP Primitives** - Register tools, resources, and prompts with a simple API
-- **Middleware** - Add cross-cutting concerns like logging, authentication, and rate limiting
+- **Built-in Middleware** - Production-ready rate limiting, caching, metrics, and more
 - **Multiple Transports** - Run locally with stdio or remotely with HTTP
 - **Descriptions** - Add human-readable descriptions to tools, resources, and prompts
 - **Graceful Shutdown** - Clean shutdown with `forge.stop()`
@@ -38,13 +38,17 @@ npm install mcp-forge zod
 Create a file `server.ts`:
 
 ```typescript
-import { Forge } from "mcp-forge";
+import { Forge, rateLimit, logging } from "mcp-forge";
 import { z } from "zod";
 
 const forge = new Forge({
   name: "my-mcp-server",
   version: "1.0.0",
 });
+
+// Add built-in middleware
+forge.use(logging({ level: "info" }));
+forge.use(rateLimit({ maxRequests: 100, windowMs: 60_000 }));
 
 forge.tool(
   "echo",
@@ -66,6 +70,116 @@ Run it:
 
 ```bash
 npx ts-node server.ts
+```
+
+## Built-in Middleware
+
+Forge ships with production-ready middleware for common use cases:
+
+### Rate Limiting
+
+Prevent abuse with configurable rate limits:
+
+```typescript
+import { rateLimit } from "mcp-forge";
+
+// 100 requests per minute per handler
+forge.use(rateLimit({ maxRequests: 100, windowMs: 60_000 }));
+
+// Global limit across all handlers
+forge.use(rateLimit({ maxRequests: 1000, windowMs: 60_000, perHandler: false }));
+
+// Custom key for per-user rate limiting
+forge.use(rateLimit({
+  maxRequests: 10,
+  windowMs: 60_000,
+  keyGenerator: (ctx) => ctx.args.userId as string ?? "anonymous"
+}));
+```
+
+### Caching
+
+Cache handler results with TTL and LRU eviction:
+
+```typescript
+import { cache } from "mcp-forge";
+
+// Cache tool results for 5 minutes
+forge.use(cache({ ttlMs: 300_000, types: ["tool"] }));
+
+// With hit/miss callbacks
+forge.use(cache({
+  ttlMs: 60_000,
+  onHit: (ctx, key) => console.log(`Cache hit: ${key}`),
+  onMiss: (ctx, key) => console.log(`Cache miss: ${key}`)
+}));
+```
+
+### Timeout
+
+Prevent runaway handlers:
+
+```typescript
+import { timeout } from "mcp-forge";
+
+// 30 second timeout
+forge.use(timeout({ ms: 30_000 }));
+
+// Custom timeout message
+forge.use(timeout({
+  ms: 10_000,
+  message: (ctx, ms) => `${ctx.name} timed out after ${ms}ms`
+}));
+```
+
+### Metrics
+
+Collect execution timing and statistics:
+
+```typescript
+import { metrics } from "mcp-forge";
+
+const { middleware, getMetrics, getAggregated, reset } = metrics({
+  onMetric: (m) => console.log(`${m.name}: ${m.durationMs}ms`)
+});
+
+forge.use(middleware);
+
+// Later, retrieve metrics
+const allMetrics = getMetrics();
+const aggregated = getAggregated(); // { name, callCount, avgDurationMs, ... }
+```
+
+### Logging
+
+Structured logging to stderr (MCP-compatible):
+
+```typescript
+import { logging } from "mcp-forge";
+
+forge.use(logging({ level: "info" }));
+
+// With custom output
+forge.use(logging({
+  level: "debug",
+  output: (entry) => myLogger.log(entry)
+}));
+```
+
+### Retry
+
+Automatic retry with exponential backoff:
+
+```typescript
+import { retry } from "mcp-forge";
+
+forge.use(retry({ maxRetries: 3, initialDelayMs: 1000 }));
+
+// Only retry specific errors
+forge.use(retry({
+  maxRetries: 3,
+  shouldRetry: (error) => error.message.includes("temporary")
+}));
 ```
 
 ## API Reference
@@ -126,9 +240,9 @@ forge.prompt(
 );
 ```
 
-### Middleware
+### Custom Middleware
 
-Add cross-cutting concerns with the `.use()` method:
+Create your own middleware:
 
 ```typescript
 forge.use(async (ctx, next) => {

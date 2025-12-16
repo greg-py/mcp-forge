@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024-12-16
+### Added
+
+- Built-in middleware library with production-ready middleware:
+  - `rateLimit()` - Token bucket rate limiting with configurable windows
+  - `cache()` - In-memory caching with TTL and LRU eviction
+  - `timeout()` - Handler timeout protection
+  - `metrics()` - Execution timing and statistics collection
+  - `logging()` - Structured logging to stderr
+  - `retry()` - Automatic retry with exponential backoff
+- Comprehensive test suite for all middleware (33 new tests)
+
+## [0.1.0] - 2025-12-16
 
 ### Added
 
