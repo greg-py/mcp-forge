@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-12-16
+
 ### Added
 
 - Built-in middleware library:
@@ -21,8 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `definePlugin()` and `definePluginFactory()` helper functions
 - Resource templates with `forge.resourceTemplate()` for dynamic URIs
 - Built-in URI template parsing and parameter extraction
-
-## [0.1.1] - 2025-12-16
 
 ### Fixed
 
@@ -49,5 +49,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI/CD workflows
 
 [Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/greg-py/mcp-forge/releases/tag/v0.1.1
+[0.1.1]: https://github.com/greg-py/mcp-forge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/greg-py/mcp-forge/releases/tag/v0.1.0

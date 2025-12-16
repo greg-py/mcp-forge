@@ -1,6 +1,6 @@
-# Contributing to Forge
+# Contributing to mcp-forge
 
-Thank you for your interest in contributing to Forge! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to mcp-forge! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
@@ -45,6 +45,7 @@ Thank you for your interest in contributing to Forge! This document provides gui
 | `npm run lint:fix` | Fix linting errors automatically |
 | `npm run format` | Format code with Prettier |
 | `npm run format:check` | Check code formatting |
+| `npm run docs` | Generate API documentation |
 
 ### Code Style
 
@@ -78,7 +79,7 @@ docs: update README with middleware examples
 
 ## Pull Request Process
 
-1. Create a feature branch from `main`:
+1. Create a feature branch from `master`:
    ```bash
    git checkout -b feat/your-feature-name
    ```
@@ -108,11 +109,20 @@ mcp-forge/
 │   ├── core/
 │   │   ├── Forge.ts      # Main Forge class
 │   │   └── errors.ts     # Error handling and logging
+│   ├── middleware/       # Built-in middleware
+│   │   ├── cache.ts
+│   │   ├── logging.ts
+│   │   ├── metrics.ts
+│   │   ├── rateLimit.ts
+│   │   ├── retry.ts
+│   │   └── timeout.ts
 │   ├── utils/
+│   │   ├── plugin.ts     # Plugin helpers
 │   │   └── schema.ts     # Zod to JSON Schema conversion
 │   └── index.ts          # Public API exports
 ├── tests/                # Test files
-├── examples/             # Example usage
+├── examples/             # Example servers
+├── docs/                 # Generated API documentation
 └── dist/                 # Compiled output (generated)
 ```
 
