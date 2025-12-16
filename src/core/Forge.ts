@@ -21,6 +21,10 @@ export interface MiddlewareContext {
     schema: z.ZodTypeAny;
     /** Type of MCP primitive being invoked */
     type: "tool" | "resource" | "prompt";
+    /** HTTP headers (only available for HTTP transport) */
+    headers?: Record<string, string | string[] | undefined>;
+    /** Authentication data set by auth middleware */
+    auth?: Record<string, unknown>;
 }
 
 /**
@@ -90,6 +94,30 @@ export interface PromptOptions<T extends z.ZodTypeAny> {
 }
 
 /**
+ * Context object available to tool handlers.
+ * Provides methods for progress reporting and other capabilities.
+ */
+export interface ToolContext {
+    /**
+     * Report progress during tool execution.
+     *
+     * @param progress - Progress value from 0.0 (just started) to 1.0 (complete).
+     * @param message - Optional status message describing current operation.
+     *
+     * @example
+     * ```typescript
+     * forge.tool("process", { schema }, async (args, ctx) => {
+     *   await ctx.reportProgress(0.1, "Starting...");
+     *   await doWork();
+     *   await ctx.reportProgress(0.9, "Finishing...");
+     *   return result;
+     * });
+     * ```
+     */
+    reportProgress: (progress: number, message?: string) => Promise<void>;
+}
+
+/**
  * A plugin function that extends a Forge instance with additional functionality.
  *
  * Plugins can register tools, resources, prompts, and middleware.
@@ -135,7 +163,7 @@ interface ToolDefinition {
     name: string;
     schema: z.ZodTypeAny;
     description?: string;
-    handler: (args: z.infer<z.ZodTypeAny>) => Promise<unknown> | unknown;
+    handler: (args: z.infer<z.ZodTypeAny>, ctx: ToolContext) => Promise<unknown> | unknown;
 }
 
 interface ResourceDefinition {
@@ -196,6 +224,8 @@ export class Forge {
     private httpServer: Server | null = null;
     private transports: Map<string, StreamableHTTPServerTransport> = new Map();
     private stdioTransport: StdioServerTransport | null = null;
+    /** Stores HTTP headers per session for auth middleware */
+    private sessionHeaders: Map<string, Record<string, string | string[] | undefined>> = new Map();
 
     /**
      * Creates a new Forge instance.
@@ -258,6 +288,12 @@ export class Forge {
      * // With description
      * forge.tool("add", { schema: z.object({ a: z.number(), b: z.number() }), description: "Add two numbers" }, ({ a, b }) => a + b);
      *
+     * // With progress reporting
+     * forge.tool("process", { schema }, async (args, ctx) => {
+     *   await ctx.reportProgress(0.5, "Processing...");
+     *   return result;
+     * });
+     *
      * // Legacy signature (schema only)
      * forge.tool("add", z.object({ a: z.number(), b: z.number() }), ({ a, b }) => a + b);
      * ```
@@ -265,7 +301,7 @@ export class Forge {
     tool<T extends z.ZodTypeAny>(
         name: string,
         optionsOrSchema: ToolOptions<T> | T,
-        handler: (args: z.infer<T>) => Promise<unknown> | unknown
+        handler: (args: z.infer<T>, ctx: ToolContext) => Promise<unknown> | unknown
     ): this {
         const isOptions = optionsOrSchema && typeof optionsOrSchema === "object" && "schema" in optionsOrSchema;
         const schema = isOptions ? (optionsOrSchema as ToolOptions<T>).schema : optionsOrSchema as T;
@@ -424,21 +460,42 @@ export class Forge {
 
     /**
      * Configures an McpServer instance with all registered tools, resources, and prompts.
+     * @param server - The McpServer to configure.
+     * @param sessionId - Optional session ID for retrieving HTTP headers.
      */
-    private setupServer(server: McpServer): void {
+    private setupServer(server: McpServer, sessionId?: string): void {
+        // Get headers for this session if available
+        const headers = sessionId ? this.sessionHeaders.get(sessionId) : undefined;
         for (const tool of this.tools) {
             const jsonSchema = toMcpSchema(tool.schema);
 
             server.registerTool(
                 tool.name,
                 { inputSchema: jsonSchema, description: tool.description },
-                async (args: any) => {
+                async (args: any, extra: any) => {
                     try {
                         const validatedArgs = tool.schema.parse(args);
 
+                        // Create ToolContext with progress reporting
+                        const progressToken = extra?._meta?.progressToken;
+                        const ctx: ToolContext = {
+                            reportProgress: async (progress: number, message?: string) => {
+                                if (progressToken && extra?.sendProgress) {
+                                    // Clamp progress to 0-1 range
+                                    const clampedProgress = Math.max(0, Math.min(1, progress));
+                                    await extra.sendProgress({
+                                        progressToken,
+                                        progress: clampedProgress,
+                                        total: 1,
+                                        message,
+                                    });
+                                }
+                            },
+                        };
+
                         const result = await this.executeWithMiddleware(
-                            { name: tool.name, args: validatedArgs as Record<string, unknown>, schema: tool.schema, type: "tool" },
-                            () => Promise.resolve(tool.handler(validatedArgs))
+                            { name: tool.name, args: validatedArgs as Record<string, unknown>, schema: tool.schema, type: "tool", headers },
+                            () => Promise.resolve(tool.handler(validatedArgs, ctx))
                         );
 
                         if (result && typeof result === "object" && "content" in result) {
@@ -468,7 +525,7 @@ export class Forge {
                 async (readUri) => {
                     try {
                         const result = await this.executeWithMiddleware(
-                            { name: resource.name, args: { uri: readUri.toString() }, schema: z.any(), type: "resource" },
+                            { name: resource.name, args: { uri: readUri.toString() }, schema: z.any(), type: "resource", headers },
                             () => Promise.resolve(resource.handler(readUri))
                         );
 
@@ -495,7 +552,7 @@ export class Forge {
                         const validatedArgs = prompt.schema.parse(args);
 
                         const result = await this.executeWithMiddleware(
-                            { name: prompt.name, args: validatedArgs as Record<string, unknown>, schema: prompt.schema, type: "prompt" },
+                            { name: prompt.name, args: validatedArgs as Record<string, unknown>, schema: prompt.schema, type: "prompt", headers },
                             () => Promise.resolve(prompt.handler(validatedArgs))
                         );
 
@@ -538,7 +595,7 @@ export class Forge {
                         const validatedParams = template.schema.parse(params);
 
                         const result = await this.executeWithMiddleware(
-                            { name: template.name, args: validatedParams as Record<string, unknown>, schema: template.schema, type: "resource" },
+                            { name: template.name, args: validatedParams as Record<string, unknown>, schema: template.schema, type: "resource", headers },
                             () => Promise.resolve(template.handler(validatedParams, readUri))
                         );
 
@@ -653,6 +710,8 @@ export class Forge {
             const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
             if (sessionId && this.transports.has(sessionId)) {
+                // Update headers for existing session (in case they changed)
+                this.sessionHeaders.set(sessionId, req.headers as Record<string, string | string[] | undefined>);
                 const transport = this.transports.get(sessionId)!;
                 await transport.handleRequest(req, res, req.body);
                 return;
@@ -663,18 +722,24 @@ export class Forge {
             });
 
             const server = this.createServer();
-            this.setupServer(server);
 
             transport.onclose = () => {
                 if (transport.sessionId) {
                     this.transports.delete(transport.sessionId);
+                    this.sessionHeaders.delete(transport.sessionId);
                 }
             };
 
             await server.connect(transport);
 
             if (transport.sessionId) {
+                // Store headers for this session
+                this.sessionHeaders.set(transport.sessionId, req.headers as Record<string, string | string[] | undefined>);
                 this.transports.set(transport.sessionId, transport);
+                // Setup server with sessionId so headers are available
+                this.setupServer(server, transport.sessionId);
+            } else {
+                this.setupServer(server);
             }
 
             await transport.handleRequest(req, res, req.body);

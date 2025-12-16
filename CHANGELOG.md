@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-16
+
+### Added
+
+- Progress reporting for tool handlers via `ToolContext.reportProgress()`
+- `ToolContext` interface providing handler capabilities
+- Tool handlers now receive optional second parameter `ctx` for progress reporting
+- Backwards compatible: existing handlers without `ctx` parameter continue to work
+- `auth()` middleware for pluggable authentication (HTTP transport)
+- `AuthOptions` interface with `extractToken` and `validate` hooks
+- `headers` and `auth` fields on `MiddlewareContext` for HTTP request data
+- Auth is automatically skipped for stdio transport (inherently trusted)
+
 ## [0.1.1] - 2025-12-16
 
 ### Added
@@ -48,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with Vitest
 - GitHub Actions CI/CD workflows
 
-[Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/greg-py/mcp-forge/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/greg-py/mcp-forge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/greg-py/mcp-forge/releases/tag/v0.1.0

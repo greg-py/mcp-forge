@@ -8,6 +8,7 @@ export {
     ResourceOptions,
     ResourceTemplateOptions,
     PromptOptions,
+    ToolContext,
     ForgePlugin,
     ForgePluginFactory,
 } from "./core/Forge";
@@ -34,4 +35,6 @@ export {
     LoggingOptions,
     retry,
     RetryOptions,
+    auth,
+    AuthOptions,
 } from "./middleware";

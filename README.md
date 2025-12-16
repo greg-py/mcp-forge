@@ -33,10 +33,12 @@ forge.start();
 
 - **🔧 Simple API** — Register tools, resources, and prompts with a fluent builder pattern
 - **📦 Plugin System** — Create modular, reusable bundles that can be published to npm
-- **🔌 Built-in Middleware** — Rate limiting, caching, metrics, logging, retry, and timeout
+- **🔌 Built-in Middleware** — Rate limiting, caching, metrics, logging, retry, timeout, and auth
 - **📐 Type Safety** — Full TypeScript support with Zod schema inference
 - **🌐 Multiple Transports** — Stdio (default) and HTTP/StreamableHTTP
 - **📋 Resource Templates** — Dynamic URIs with parameterized paths like `file:///logs/{date}`
+- **📊 Progress Reporting** — Report progress during long-running tool operations
+- **🔐 Pluggable Auth** — Bring your own authentication with `extractToken`/`validate` hooks
 
 ## Requirements
 
@@ -126,6 +128,30 @@ forge.tool(
 );
 ```
 
+### Progress Reporting
+
+For long-running tools, report progress to the client:
+
+```typescript
+forge.tool(
+  "analyze_repo",
+  {
+    schema: z.object({ url: z.string() }),
+    description: "Analyze a repository",
+  },
+  async ({ url }, ctx) => {
+    await ctx.reportProgress(0.1, "Cloning repository...");
+    await cloneRepo(url);
+
+    await ctx.reportProgress(0.5, "Analyzing files...");
+    const results = await analyzeFiles();
+
+    await ctx.reportProgress(0.9, "Generating report...");
+    return generateReport(results);
+  }
+);
+```
+
 ### Resources
 
 Resources expose data that clients can read:
@@ -212,9 +238,10 @@ forge.plugin(mathPlugin);
 | `metrics()` | Execution timing and statistics |
 | `logging()` | Structured logging to stderr |
 | `retry()` | Automatic retry with exponential backoff |
+| `auth()` | Pluggable authentication |
 
 ```typescript
-import { rateLimit, cache, timeout, logging } from "mcp-forge";
+import { rateLimit, cache, timeout, logging , auth } from "mcp-forge";
 
 forge
   .use(logging({ level: "info" }))
@@ -222,6 +249,33 @@ forge
   .use(cache({ ttlMs: 300_000 }))
   .use(timeout({ ms: 30_000 }));
 ```
+
+## Authentication
+
+Protect your HTTP endpoints with pluggable authentication:
+
+```typescript
+import { Forge, auth } from "mcp-forge";
+
+const forge = new Forge({ name: "secure-server", version: "1.0.0" });
+
+forge.use(auth({
+  extractToken: (headers) => {
+    const authHeader = headers["authorization"];
+    if (typeof authHeader === "string") {
+      return authHeader.replace("Bearer ", "");
+    }
+    return undefined;
+  },
+  validate: async (token) => {
+    // Your validation logic (database, JWT, API key, etc.)
+    const user = await db.validateToken(token);
+    return user ? { userId: user.id, role: user.role } : null;
+  },
+}));
+```
+
+> **Note:** Auth is automatically skipped for stdio transport (inherently trusted).
 
 ## Transport Options
 

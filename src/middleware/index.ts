@@ -12,3 +12,5 @@ export { timeout, TimeoutOptions } from "./timeout";
 export { metrics, Metric, AggregatedMetrics, MetricsOptions } from "./metrics";
 export { logging, LogLevel, LogEntry, LoggingOptions } from "./logging";
 export { retry, RetryOptions } from "./retry";
+export { auth, AuthOptions } from "./auth";
+
