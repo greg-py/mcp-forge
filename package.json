@@ -40,7 +40,7 @@
     "agent",
     "sdk"
   ],
-  "author": "",
+  "author": "Greg King <gmking.dev@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
