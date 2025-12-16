@@ -15,12 +15,13 @@ Forge abstracts away the low-level details of the MCP SDK, allowing you to focus
 ## Features
 
 - **Type Safety**: Full TypeScript support with argument inference from Zod schemas.
+- **MCP Primitives**: Register tools, resources, and prompts with a simple API.
+- **Middleware**: Add cross-cutting concerns like logging, authentication, and rate limiting.
+- **Multiple Transports**: Run locally with stdio or remotely with HTTP.
 - **Validation**: Runtime argument validation using Zod.
-- **Developer Experience**: Simple fluent API for defining tools.
 - **Error Handling**: Polished error reporting to LLMs to prevent hallucinations.
-- **Zero Config**: Works out of the box with Stdio transport.
 
-## quick Start
+## Quick Start
 
 ### Installation
 
@@ -58,6 +59,30 @@ run it:
 
 ```bash
 npx ts-node server.ts
+```
+
+## Middleware
+
+Add cross-cutting concerns with the `.use()` method:
+
+```typescript
+forge.use(async (ctx, next) => {
+  console.log(`Calling ${ctx.type}: ${ctx.name}`);
+  const start = Date.now();
+  const result = await next();
+  console.log(`Completed in ${Date.now() - start}ms`);
+  return result;
+});
+```
+
+## Transport Options
+
+By default, Forge uses stdio transport (for local MCP clients like Claude Desktop).
+
+For remote clients, use HTTP transport:
+
+```typescript
+await forge.start({ transport: "http", port: 3000 });
 ```
 
 ## Connecting to an MCP Client
