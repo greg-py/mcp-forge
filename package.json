@@ -9,11 +9,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/mcp-forge.git"
+    "url": "git+https://github.com/greg-py/mcp-forge.git"
   },
-  "homepage": "https://github.com/your-org/mcp-forge#readme",
+  "homepage": "https://github.com/greg-py/mcp-forge#readme",
   "bugs": {
-    "url": "https://github.com/your-org/mcp-forge/issues"
+    "url": "https://github.com/greg-py/mcp-forge/issues"
   },
   "scripts": {
     "build": "tsc",

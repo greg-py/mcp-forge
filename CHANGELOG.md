@@ -42,5 +42,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with Vitest
 - GitHub Actions CI/CD workflows
 
-[Unreleased]: https://github.com/your-org/mcp-forge/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/your-org/mcp-forge/releases/tag/v0.1.0
+[Unreleased]: https://github.com/greg-py/mcp-forge/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/greg-py/mcp-forge/releases/tag/v0.1.0

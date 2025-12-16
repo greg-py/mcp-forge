@@ -252,7 +252,7 @@ process.on("SIGINT", async () => {
 
 ## API Reference
 
-See the [API documentation](https://github.com/your-org/mcp-forge#api-reference) for complete details.
+See the [API documentation](https://github.com/greg-py/mcp-forge#api-reference) for complete details.
 
 ## Examples
 
