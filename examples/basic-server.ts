@@ -15,30 +15,41 @@ forge.use(async (ctx, next) => {
     return result;
 });
 
-// Tool: Get weather for a city
+// Tool with description
 forge.tool(
     "get_weather",
-    z.object({
-        city: z.string().describe("The city to get weather for"),
-        unit: z.enum(["celsius", "fahrenheit"]).optional().default("celsius"),
-    }),
+    {
+        schema: z.object({
+            city: z.string().describe("The city to get weather for"),
+            unit: z.enum(["celsius", "fahrenheit"]).optional().default("celsius"),
+        }),
+        description: "Get the current weather for a city",
+    },
     async ({ city, unit }) => {
         const temp = Math.floor(Math.random() * 30);
         return `The weather in ${city} is ${temp} degrees ${unit}.`;
     }
 );
 
-// Resource: Application configuration
-forge.resource("app-config", "file:///config.json", async () => ({
-    text: JSON.stringify({ appName: "weather-server", version: "1.0.0" }, null, 2),
-}));
+// Resource with description
+forge.resource(
+    "app-config",
+    "file:///config.json",
+    { description: "Application configuration", mimeType: "application/json" },
+    async () => ({
+        text: JSON.stringify({ appName: "weather-server", version: "1.0.0" }, null, 2),
+    })
+);
 
-// Prompt: Weather summary template
+// Prompt with description
 forge.prompt(
     "summarize_weather",
-    z.object({
-        city: z.string().describe("The city to summarize"),
-    }),
+    {
+        schema: z.object({
+            city: z.string().describe("The city to summarize"),
+        }),
+        description: "Generate a weather summary prompt for a city",
+    },
     async ({ city }) => ({
         messages: [
             {
@@ -51,6 +62,13 @@ forge.prompt(
         ],
     })
 );
+
+// Handle graceful shutdown
+process.on("SIGINT", async () => {
+    console.error("\nShutting down...");
+    await forge.stop();
+    process.exit(0);
+});
 
 forge.start().catch((err) => {
     console.error("Failed to start server:", err);
