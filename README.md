@@ -1,220 +1,160 @@
-# Forge (mcp-forge)
+# mcp-forge
 
+[![npm version](https://img.shields.io/npm/v/mcp-forge.svg)](https://www.npmjs.com/package/mcp-forge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue.svg)](https://www.typescriptlang.org/)
-[![CI](https://github.com/username/mcp-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/username/mcp-forge/actions/workflows/ci.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-Forge is a high-level application framework for the **Model Context Protocol (MCP)**. Think of it as **Express.js** for building MCP servers.
+A high-level application framework for the **Model Context Protocol (MCP)**. Think of it as **Express.js** for building MCP servers.
 
-Forge abstracts away the low-level details of the MCP SDK, allowing you to focus on defining your AI tools using simple Zod schemas and standard JavaScript functions. It handles:
+## Why mcp-forge?
 
-- Protocol handshake and negotiation
-- JSON-RPC message processing
-- Automatic argument validation using Zod
-- Type-safe argument inference for your handlers
-- Robust error handling
-
-## Features
-
-- **Type Safety** - Full TypeScript support with argument inference from Zod schemas
-- **MCP Primitives** - Register tools, resources, and prompts with a simple API
-- **Built-in Middleware** - Production-ready rate limiting, caching, metrics, and more
-- **Multiple Transports** - Run locally with stdio or remotely with HTTP
-- **Descriptions** - Add human-readable descriptions to tools, resources, and prompts
-- **Graceful Shutdown** - Clean shutdown with `forge.stop()`
-- **Validation** - Runtime argument validation using Zod
-- **Error Handling** - Polished error reporting to LLMs to prevent hallucinations
-
-## Quick Start
-
-### Installation
-
-```bash
-npm install mcp-forge zod
-```
-
-### Basic Usage
-
-Create a file `server.ts`:
+Building MCP servers with the raw SDK requires handling low-level protocol details, JSON-RPC messaging, and repetitive boilerplate. **mcp-forge** provides a clean, fluent API that lets you focus on your tool logic:
 
 ```typescript
-import { Forge, rateLimit, logging } from "mcp-forge";
+import { Forge } from "mcp-forge";
 import { z } from "zod";
 
-const forge = new Forge({
-  name: "my-mcp-server",
-  version: "1.0.0",
-});
-
-// Add built-in middleware
-forge.use(logging({ level: "info" }));
-forge.use(rateLimit({ maxRequests: 100, windowMs: 60_000 }));
+const forge = new Forge({ name: "my-server", version: "1.0.0" });
 
 forge.tool(
-  "echo",
+  "get_weather",
   {
-    schema: z.object({
-      message: z.string().describe("The message to echo back"),
-    }),
-    description: "Echo a message back to the user",
+    schema: z.object({ city: z.string() }),
+    description: "Get weather for a city",
   },
-  async ({ message }) => {
-    return `Echo: ${message}`;
-  }
+  async ({ city }) => `Weather in ${city}: 72°F, Sunny`
 );
 
 forge.start();
 ```
 
-Run it:
+## Features
+
+- **🔧 Simple API** — Register tools, resources, and prompts with a fluent builder pattern
+- **📦 Plugin System** — Create modular, reusable bundles that can be published to npm
+- **🔌 Built-in Middleware** — Rate limiting, caching, metrics, logging, retry, and timeout
+- **📐 Type Safety** — Full TypeScript support with Zod schema inference
+- **🌐 Multiple Transports** — Stdio (default) and HTTP/StreamableHTTP
+- **📋 Resource Templates** — Dynamic URIs with parameterized paths like `file:///logs/{date}`
+
+## Requirements
+
+- Node.js 18 or higher
+- TypeScript 5.0+ (recommended)
+
+## Installation
+
+```bash
+npm install mcp-forge zod
+```
+
+## Quick Start
+
+### 1. Create a Server
+
+```typescript
+// server.ts
+import { Forge, logging } from "mcp-forge";
+import { z } from "zod";
+
+const forge = new Forge({
+  name: "demo-server",
+  version: "1.0.0",
+});
+
+// Add logging middleware
+forge.use(logging({ level: "info" }));
+
+// Register a tool
+forge.tool(
+  "greet",
+  {
+    schema: z.object({ name: z.string().describe("Name to greet") }),
+    description: "Greet someone by name",
+  },
+  ({ name }) => `Hello, ${name}!`
+);
+
+// Start the server
+forge.start();
+```
+
+### 2. Run the Server
 
 ```bash
 npx ts-node server.ts
 ```
 
-## Built-in Middleware
+### 3. Connect to Claude Desktop
 
-Forge ships with production-ready middleware for common use cases:
+Add to your Claude Desktop configuration:
 
-### Rate Limiting
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-Prevent abuse with configurable rate limits:
-
-```typescript
-import { rateLimit } from "mcp-forge";
-
-// 100 requests per minute per handler
-forge.use(rateLimit({ maxRequests: 100, windowMs: 60_000 }));
-
-// Global limit across all handlers
-forge.use(rateLimit({ maxRequests: 1000, windowMs: 60_000, perHandler: false }));
-
-// Custom key for per-user rate limiting
-forge.use(rateLimit({
-  maxRequests: 10,
-  windowMs: 60_000,
-  keyGenerator: (ctx) => ctx.args.userId as string ?? "anonymous"
-}));
+```json
+{
+  "mcpServers": {
+    "demo-server": {
+      "command": "npx",
+      "args": ["ts-node", "/absolute/path/to/server.ts"]
+    }
+  }
+}
 ```
 
-### Caching
+Restart Claude Desktop, and your tools will be available!
 
-Cache handler results with TTL and LRU eviction:
-
-```typescript
-import { cache } from "mcp-forge";
-
-// Cache tool results for 5 minutes
-forge.use(cache({ ttlMs: 300_000, types: ["tool"] }));
-
-// With hit/miss callbacks
-forge.use(cache({
-  ttlMs: 60_000,
-  onHit: (ctx, key) => console.log(`Cache hit: ${key}`),
-  onMiss: (ctx, key) => console.log(`Cache miss: ${key}`)
-}));
-```
-
-### Timeout
-
-Prevent runaway handlers:
-
-```typescript
-import { timeout } from "mcp-forge";
-
-// 30 second timeout
-forge.use(timeout({ ms: 30_000 }));
-
-// Custom timeout message
-forge.use(timeout({
-  ms: 10_000,
-  message: (ctx, ms) => `${ctx.name} timed out after ${ms}ms`
-}));
-```
-
-### Metrics
-
-Collect execution timing and statistics:
-
-```typescript
-import { metrics } from "mcp-forge";
-
-const { middleware, getMetrics, getAggregated, reset } = metrics({
-  onMetric: (m) => console.log(`${m.name}: ${m.durationMs}ms`)
-});
-
-forge.use(middleware);
-
-// Later, retrieve metrics
-const allMetrics = getMetrics();
-const aggregated = getAggregated(); // { name, callCount, avgDurationMs, ... }
-```
-
-### Logging
-
-Structured logging to stderr (MCP-compatible):
-
-```typescript
-import { logging } from "mcp-forge";
-
-forge.use(logging({ level: "info" }));
-
-// With custom output
-forge.use(logging({
-  level: "debug",
-  output: (entry) => myLogger.log(entry)
-}));
-```
-
-### Retry
-
-Automatic retry with exponential backoff:
-
-```typescript
-import { retry } from "mcp-forge";
-
-forge.use(retry({ maxRetries: 3, initialDelayMs: 1000 }));
-
-// Only retry specific errors
-forge.use(retry({
-  maxRetries: 3,
-  shouldRetry: (error) => error.message.includes("temporary")
-}));
-```
-
-## API Reference
+## Core Concepts
 
 ### Tools
 
-Register tools that can be called by MCP clients:
+Tools are functions that MCP clients can invoke:
 
 ```typescript
-// With description (recommended)
 forge.tool(
-  "add",
+  "add_numbers",
   {
-    schema: z.object({ a: z.number(), b: z.number() }),
+    schema: z.object({
+      a: z.number().describe("First number"),
+      b: z.number().describe("Second number"),
+    }),
     description: "Add two numbers together",
   },
   ({ a, b }) => a + b
 );
-
-// Simple form (schema only)
-forge.tool("add", z.object({ a: z.number(), b: z.number() }), ({ a, b }) => a + b);
 ```
 
 ### Resources
 
-Expose data that MCP clients can read:
+Resources expose data that clients can read:
 
 ```typescript
 forge.resource(
   "config",
   "file:///config.json",
   { description: "Application configuration", mimeType: "application/json" },
-  async () => ({
-    text: JSON.stringify({ key: "value" }),
-  })
+  () => ({ text: JSON.stringify({ version: "1.0.0" }) })
+);
+```
+
+### Resource Templates
+
+Define dynamic resources with URI parameters:
+
+```typescript
+forge.resourceTemplate(
+  "user-profile",
+  "db://users/{userId}",
+  {
+    schema: z.object({ userId: z.string() }),
+    description: "User profile by ID",
+  },
+  async ({ userId }) => {
+    const user = await db.findUser(userId);
+    return { text: JSON.stringify(user) };
+  }
 );
 ```
 
@@ -230,41 +170,78 @@ forge.prompt(
     description: "Generate a summary prompt",
   },
   ({ topic }) => ({
-    messages: [
-      {
-        role: "user",
-        content: { type: "text", text: `Summarize: ${topic}` },
-      },
-    ],
+    messages: [{ role: "user", content: { type: "text", text: `Summarize: ${topic}` } }],
   })
 );
 ```
 
-### Custom Middleware
+### Middleware
 
-Create your own middleware:
+Add cross-cutting concerns:
 
 ```typescript
 forge.use(async (ctx, next) => {
-  console.log(`Calling ${ctx.type}: ${ctx.name}`);
-  const start = Date.now();
+  console.log(`Executing ${ctx.type}: ${ctx.name}`);
   const result = await next();
-  console.log(`Completed in ${Date.now() - start}ms`);
   return result;
 });
 ```
 
-### Transport Options
+### Plugins
 
-By default, Forge uses stdio transport (for local MCP clients like Claude Desktop).
-
-For remote clients, use HTTP transport:
+Bundle related functionality into reusable modules:
 
 ```typescript
-await forge.start({ transport: "http", port: 3000 });
+import { ForgePlugin } from "mcp-forge";
+
+const mathPlugin: ForgePlugin = (forge) => {
+  forge.tool("add", { schema: z.object({ a: z.number(), b: z.number() }) }, ({ a, b }) => a + b);
+  forge.tool("multiply", { schema: z.object({ a: z.number(), b: z.number() }) }, ({ a, b }) => a * b);
+};
+
+forge.plugin(mathPlugin);
 ```
 
-### Graceful Shutdown
+## Built-in Middleware
+
+| Middleware | Description |
+|------------|-------------|
+| `rateLimit()` | Token bucket rate limiting |
+| `cache()` | In-memory caching with TTL |
+| `timeout()` | Handler timeout protection |
+| `metrics()` | Execution timing and statistics |
+| `logging()` | Structured logging to stderr |
+| `retry()` | Automatic retry with exponential backoff |
+
+```typescript
+import { rateLimit, cache, timeout, logging } from "mcp-forge";
+
+forge
+  .use(logging({ level: "info" }))
+  .use(rateLimit({ maxRequests: 100, windowMs: 60_000 }))
+  .use(cache({ ttlMs: 300_000 }))
+  .use(timeout({ ms: 30_000 }));
+```
+
+## Transport Options
+
+### Stdio (Default)
+
+For local MCP clients like Claude Desktop:
+
+```typescript
+forge.start(); // Uses stdio by default
+```
+
+### HTTP
+
+For remote clients:
+
+```typescript
+forge.start({ transport: "http", port: 3000 });
+```
+
+## Graceful Shutdown
 
 ```typescript
 process.on("SIGINT", async () => {
@@ -273,31 +250,25 @@ process.on("SIGINT", async () => {
 });
 ```
 
-## Connecting to Claude Desktop
+## API Reference
 
-1. Open your Claude Desktop configuration file:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+See the [API documentation](https://github.com/your-org/mcp-forge#api-reference) for complete details.
 
-2. Add your Forge server:
+## Examples
 
-```json
-{
-  "mcpServers": {
-    "my-forge-server": {
-      "command": "npx",
-      "args": ["-y", "ts-node", "/absolute/path/to/your/server.ts"]
-    }
-  }
-}
-```
+Browse the [`examples/`](./examples) directory for complete working examples:
 
-3. Restart Claude Desktop. Your tools will now be available!
+- **basic-server.ts** — Simple server with tools, resources, and prompts
+- **plugin-demo.ts** — Demonstrates the plugin system
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development setup instructions
+- Code style guidelines
+- Pull request process
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2025 mcp-forge contributors

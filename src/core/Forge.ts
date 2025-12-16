@@ -68,6 +68,18 @@ export interface ResourceOptions {
 }
 
 /**
+ * Configuration options for resource template registration.
+ */
+export interface ResourceTemplateOptions<T extends z.ZodTypeAny> {
+    /** Zod schema for validating URI parameters */
+    schema: T;
+    /** Human-readable description of the resource template */
+    description?: string;
+    /** MIME type of the resource content */
+    mimeType?: string;
+}
+
+/**
  * Configuration options for prompt registration.
  */
 export interface PromptOptions<T extends z.ZodTypeAny> {
@@ -76,6 +88,47 @@ export interface PromptOptions<T extends z.ZodTypeAny> {
     /** Human-readable description of the prompt */
     description?: string;
 }
+
+/**
+ * A plugin function that extends a Forge instance with additional functionality.
+ *
+ * Plugins can register tools, resources, prompts, and middleware.
+ * They receive the Forge instance and can call any of its public methods.
+ *
+ * @example
+ * ```typescript
+ * // Define a plugin
+ * const analyticsPlugin: ForgePlugin = (forge) => {
+ *   forge.use(loggingMiddleware);
+ *   forge.tool("track_event", { schema: eventSchema }, handler);
+ * };
+ *
+ * // Use the plugin
+ * forge.plugin(analyticsPlugin);
+ * ```
+ */
+export type ForgePlugin = (forge: Forge) => void;
+
+/**
+ * Plugin with configuration options.
+ *
+ * A factory function that accepts configuration and returns a plugin.
+ *
+ * @example
+ * ```typescript
+ * // Define a configurable plugin
+ * function databasePlugin(config: { connectionString: string }): ForgePlugin {
+ *   return (forge) => {
+ *     const db = connect(config.connectionString);
+ *     forge.tool("query", { schema }, async (args) => db.query(args.sql));
+ *   };
+ * }
+ *
+ * // Use with configuration
+ * forge.plugin(databasePlugin({ connectionString: "postgres://..." }));
+ * ```
+ */
+export type ForgePluginFactory<T> = (config: T) => ForgePlugin;
 
 // Internal type definitions
 interface ToolDefinition {
@@ -98,6 +151,15 @@ interface PromptDefinition {
     schema: z.ZodTypeAny;
     description?: string;
     handler: (args: z.infer<z.ZodTypeAny>) => Promise<GetPromptResult> | GetPromptResult;
+}
+
+interface ResourceTemplateDefinition {
+    name: string;
+    uriTemplate: string;
+    schema: z.ZodTypeAny;
+    description?: string;
+    mimeType?: string;
+    handler: (params: z.infer<z.ZodTypeAny>, uri: URL) => Promise<ResourceResult> | ResourceResult;
 }
 
 /**
@@ -128,6 +190,7 @@ export class Forge {
     private config: { name: string; version: string };
     private tools: ToolDefinition[] = [];
     private resources: ResourceDefinition[] = [];
+    private resourceTemplates: ResourceTemplateDefinition[] = [];
     private prompts: PromptDefinition[] = [];
     private middlewares: ForgeMiddleware[] = [];
     private httpServer: Server | null = null;
@@ -151,6 +214,33 @@ export class Forge {
      */
     use(middleware: ForgeMiddleware): this {
         this.middlewares.push(middleware);
+        return this;
+    }
+
+    /**
+     * Registers a plugin with the Forge server.
+     *
+     * Plugins are functions that extend Forge with additional tools,
+     * resources, prompts, and middleware. They enable modular, reusable
+     * bundles of functionality that can be shared as npm packages.
+     *
+     * @param plugin - The plugin function to register.
+     * @returns The Forge instance for chaining.
+     *
+     * @example
+     * ```typescript
+     * // Simple plugin
+     * forge.plugin((app) => {
+     *   app.tool("my_tool", { schema }, handler);
+     * });
+     *
+     * // Plugin from package
+     * import { analyticsPlugin } from "@forge/plugin-analytics";
+     * forge.plugin(analyticsPlugin({ apiKey: "..." }));
+     * ```
+     */
+    plugin(plugin: ForgePlugin): this {
+        plugin(this);
         return this;
     }
 
@@ -220,6 +310,68 @@ export class Forge {
             description: options.description,
             mimeType: options.mimeType,
             handler: actualHandler,
+        });
+        return this;
+    }
+
+    /**
+     * Registers a resource template for dynamic URIs.
+     *
+     * Resource templates allow you to define resources with parameterized URIs
+     * like `file:///logs/{date}` or `db://users/{id}`. Parameters are extracted
+     * from the URI and validated against the provided schema.
+     *
+     * @param name - Display name for the resource template.
+     * @param uriTemplate - URI template with parameters in curly braces, e.g. `file:///logs/{date}`.
+     * @param options - Configuration including schema for URI parameters.
+     * @param handler - Function that handles the resource request with extracted parameters.
+     * @returns The Forge instance for chaining.
+     *
+     * @example
+     * ```typescript
+     * // Dynamic log files by date
+     * forge.resourceTemplate(
+     *   "daily-logs",
+     *   "file:///logs/{date}",
+     *   {
+     *     schema: z.object({ date: z.string().regex(/\d{4}-\d{2}-\d{2}/) }),
+     *     description: "Daily log files",
+     *     mimeType: "text/plain"
+     *   },
+     *   async ({ date }) => {
+     *     const content = await fs.readFile(`logs/${date}.log`, "utf-8");
+     *     return { text: content };
+     *   }
+     * );
+     *
+     * // Database records by ID
+     * forge.resourceTemplate(
+     *   "user",
+     *   "db://users/{id}",
+     *   {
+     *     schema: z.object({ id: z.string() }),
+     *     description: "User record by ID"
+     *   },
+     *   async ({ id }) => {
+     *     const user = await db.users.findById(id);
+     *     return { text: JSON.stringify(user) };
+     *   }
+     * );
+     * ```
+     */
+    resourceTemplate<T extends z.ZodTypeAny>(
+        name: string,
+        uriTemplate: string,
+        options: ResourceTemplateOptions<T>,
+        handler: (params: z.infer<T>, uri: URL) => Promise<ResourceResult> | ResourceResult
+    ): this {
+        this.resourceTemplates.push({
+            name,
+            uriTemplate,
+            schema: options.schema,
+            description: options.description,
+            mimeType: options.mimeType,
+            handler,
         });
         return this;
     }
@@ -354,6 +506,78 @@ export class Forge {
                 }
             );
         }
+
+        // Register resource templates
+        for (const template of this.resourceTemplates) {
+            // Extract parameter names from URI template
+            const paramNames = this.extractTemplateParams(template.uriTemplate);
+            const regexPattern = this.templateToRegex(template.uriTemplate);
+
+            // Register as a resource with the template URI
+            // The handler will match incoming URIs against the pattern
+            server.registerResource(
+                template.name,
+                template.uriTemplate,
+                { description: template.description, mimeType: template.mimeType },
+                async (readUri) => {
+                    try {
+                        const uriString = readUri.toString();
+                        const match = uriString.match(regexPattern);
+
+                        if (!match) {
+                            throw new Error(`URI "${uriString}" does not match template "${template.uriTemplate}"`);
+                        }
+
+                        // Extract parameters from the matched groups
+                        const params: Record<string, string> = {};
+                        paramNames.forEach((name, index) => {
+                            params[name] = match[index + 1] || "";
+                        });
+
+                        // Validate parameters against schema
+                        const validatedParams = template.schema.parse(params);
+
+                        const result = await this.executeWithMiddleware(
+                            { name: template.name, args: validatedParams as Record<string, unknown>, schema: template.schema, type: "resource" },
+                            () => Promise.resolve(template.handler(validatedParams, readUri))
+                        );
+
+                        return {
+                            contents: [{ uri: uriString, ...(result as ResourceResult) }],
+                        };
+                    } catch (error) {
+                        throw error;
+                    }
+                }
+            );
+        }
+    }
+
+    /**
+     * Extracts parameter names from a URI template.
+     * E.g., "file:///logs/{date}/{level}" => ["date", "level"]
+     */
+    private extractTemplateParams(template: string): string[] {
+        const matches = template.match(/\{([^}]+)\}/g);
+        if (!matches) return [];
+        return matches.map((m) => m.slice(1, -1));
+    }
+
+    /**
+     * Converts a URI template to a regex pattern for matching.
+     * E.g., "file:///logs/{date}" => /^file:\/\/\/logs\/([^\/]+)$/
+     */
+    private templateToRegex(template: string): RegExp {
+        // Escape special regex characters except for {param} placeholders
+        const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, (char) => {
+            if (char === "{" || char === "}") return char;
+            return "\\" + char;
+        });
+
+        // Replace {param} with capture groups
+        const pattern = escaped.replace(/\\\{([^}]+)\\\}/g, "([^/]+)");
+
+        return new RegExp("^" + pattern + "$");
     }
 
     /**

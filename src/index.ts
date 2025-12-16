@@ -6,10 +6,14 @@ export {
     ResourceResult,
     ToolOptions,
     ResourceOptions,
+    ResourceTemplateOptions,
     PromptOptions,
+    ForgePlugin,
+    ForgePluginFactory,
 } from "./core/Forge";
 export { logger, formatError } from "./core/errors";
 export { toMcpSchema } from "./utils/schema";
+export { definePlugin, definePluginFactory } from "./utils/plugin";
 
 // Built-in middleware
 export {
