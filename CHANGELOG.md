@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-12-16
+
 ### Fixed
 
-- Fixed prompts crash with SDK v1.25.x by passing Zod schemas directly instead of extracting `.shape`
+- Fixed prompts crash by correctly passing `.shape` to SDK `registerPrompt` (reverted from v0.2.2)
+
+### Changed
+
+- **BREAKING**: Updated `peerDependencies.zod` to `^3.25.0 || ^4.0.0` to match SDK v1.25.x requirements
+  - Users must upgrade to Zod 3.25+ or Zod 4.0+
+- Updated devDependencies Zod to v3.25.0
+
+## [0.2.2] - 2025-12-16
+
+### Fixed
+
+- Incorrect fix for prompts (reverted in v0.2.3)
 
 ## [0.2.1] - 2025-12-16
 
