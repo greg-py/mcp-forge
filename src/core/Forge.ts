@@ -540,13 +540,12 @@ export class Forge {
         }
 
         for (const prompt of this.prompts) {
-            const argsSchema = prompt.schema instanceof z.ZodObject
-                ? prompt.schema.shape
-                : prompt.schema;
-
+            // Pass Zod schema directly - SDK handles validation and JSON Schema conversion
+            // The 'any' cast avoids TypeScript deep instantiation errors with SDK's complex generic types
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             server.registerPrompt(
                 prompt.name,
-                { argsSchema: argsSchema as any, description: prompt.description },
+                { argsSchema: prompt.schema as any, description: prompt.description },
                 async (args: any) => {
                     try {
                         const validatedArgs = prompt.schema.parse(args);
